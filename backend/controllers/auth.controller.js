@@ -1,6 +1,8 @@
-import User from "../models/user.model";
+import User from "../models/user.model.js";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
+
+// Helper function to hash passwords
 export const hashPassword = async (password) => {
   try {
     const salt = 10;
@@ -11,8 +13,8 @@ export const hashPassword = async (password) => {
   }
 };
 
+// Signup logic
 export const signup = async (req, res, next) => {
-  //Get the data of user
   const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
@@ -20,23 +22,31 @@ export const signup = async (req, res, next) => {
   }
 
   try {
-    //Hash Password
-    const hashedPassword = await hashPassword(password);
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: "Email already registered" });
+    }
 
-    const createNewUser = await User.create({
+    // Hash password and save new user
+    const hashedPassword = await hashPassword(password);
+    const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
     });
 
-    await createNewUser.save();
+    await newUser.save();
 
-    res.status(201).json({ message: "User created successfully" });
+    res
+      .status(201)
+      .json({ message: "User created successfully", user: { name, email } });
   } catch (error) {
     next(error);
   }
 };
 
+// Login logic
 export const login = async (req, res, next) => {
   const { email, password } = req.body;
 
@@ -44,35 +54,33 @@ export const login = async (req, res, next) => {
     return res.status(400).json({ message: "All fields are required" });
   }
 
-  //check the password is correct or not
   try {
-    const isMatch = await bcryptjs.compare(password, user.password);
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    // Compare passwords
+    const isMatch = await bcryptjs.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    //Create a token
+    // Generate JWT token
     const token = jwt.sign(
-      {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      },
+      { id: user._id, name: user.name, email: user.email },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1d",
-      }
+      { expiresIn: "1d" }
     );
 
-    const { password: pass, ...rest } = user._doc;
+    const { password: pass, ...userData } = user._doc;
 
+    // Send response with cookie
     res
       .status(200)
-      .cookie("token", token, {
-        httpOnly: true,
-      })
-      .json(rest);
+      .cookie("token", token, { httpOnly: true })
+      .json({ message: "Login successful", user: userData });
   } catch (error) {
     next(error);
   }

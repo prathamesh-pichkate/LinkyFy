@@ -21,6 +21,7 @@
     "mongodb": "^6.12.0",
     "mongoose": "^8.9.3",
     "nanoid": "^5.0.9",
+    "qrcode": "^1.5.4",
     "redis": "^4.7.0"
   },
   "devDependencies": {
